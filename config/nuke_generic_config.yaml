@@ -1,48 +1,91 @@
-regions:
-  # add `global` here to include IAM entities to be nuked
-  - TARGET_REGION # will be overridden during run time based on region parameter
+  regions:
+    # add `global` here to include IAM entities to be nuked
+    - TARGET_REGION # will be overridden during run time based on region parameter
 
-account-blocklist:
-- 123456789012 #prod
+  account-blocklist:
+  - 123456789012 #prod
 
-# optional: restrict nuking to these resources
-resource-types:
-  excludes: # exclude this as will be already handled when you include S3Bucket/DynamoDBTable. Else takes a lot of time and logs get filled up
-  - S3Object
-  - DynamoDBTableItem
-  targets:
-  - IAMUser
-  - IAMUserPolicyAttachment
-  - IAMUserAccessKey
-  - S3Bucket
-  - SNSTopic
-  - SQSQueue
-  - CloudTrailTrail
+  # optional: restrict nuking to these resources
+  resource-types:
+    excludes: # exclude this as will be already handled when you include S3Bucket/DynamoDBTable. Else takes a lot of time and logs get filled up
+    - S3Object
+    - DynamoDBTableItem
+    targets:
+    - IAMUser
+    - IAMUserPolicyAttachment
+    - IAMUserAccessKey
+    - S3Bucket
+    - SNSTopic
+    - SQSQueue
+    - CloudTrailTrail
+    presets:
+      - common
+      - sso
+      - accounts
 
-accounts:
-  ACCOUNT: # will be overridden during run time based on account param
-    filters:
-      IAMRole:
-      - "ProdRoles"
-      - "DoNotDeleteRoles"
-      - type: regex
-        value: ".*"
-      IAMUser:
-      - "admin"
-      - type: regex
-        value: ".*"
-      IAMUserPolicyAttachment:
-      - property: RoleName
-        value: "admin"
-      IAMUserAccessKey:
-      - property: UserName
-        value: "admin"
-      S3Bucket:
-      - "s3://my-bucket"
-      CloudTrailTrail: # filter all CloudTrail
-      - type: regex
-        value: ".*"
-      SNSTopic: # SNS is protected based on global exception tags inside the nuke_config_update.py
-      - type: regex
-        value: ".*"
-      SQSQueue: [] # delete all SQS
+  accounts:
+    ACCOUNT: # will be overridden during run time based on account param
+      filters:
+        IAMRole:
+        - "ProdRoles"
+        - "DoNotDeleteRoles"
+        - type: regex
+          value: ".*"
+        IAMUser:
+        - "admin"
+        - type: regex
+          value: ".*"
+        IAMUserPolicyAttachment:
+        - property: RoleName
+          value: "admin"
+        IAMUserAccessKey:
+        - property: UserName
+          value: "admin"
+        S3Bucket:
+          - type: regex
+            value: "^s3://nuke-account-cleanser-config-.*$"
+        CloudTrailTrail: # filter all CloudTrail
+        - type: regex
+          value: ".*"
+        SNSTopic: # SNS is protected based on global exception tags inside the nuke_config_update.py
+        - type: regex
+          value: ".*"
+        SQSQueue: [] # delete all SQS
+
+  presets:
+    common:
+      filters:
+        EC2VPC:
+          - property: IsDefault
+            value: "true"
+        EC2Subnet:
+          - property: DefaultForAz
+            value: "true"
+        EC2InternetGateway:
+          - property: DefaultVPC
+            value: "true"
+        EC2InternetGatewayAttachment:
+          - property: DefaultVPC
+            value: "true"
+        EC2DHCPOption:
+          - property: DefaultVPC
+            value: "true"
+        CloudFormationStack:
+          - property: Name
+            type: exact
+            value: NukeCleanser
+        ParameterStore:
+          - property: Name
+            type: exact
+            value: /nuke/dry_run
+    sso:
+      filters:
+        IAMSAMLProvider:
+          - type: "regex"
+            value: "AWSSSO_.*_DO_NOT_DELETE"
+        IAMRole:
+          - type: "glob"
+            value: "AWSReservedSSO_*"
+        IAMRolePolicyAttachment:
+          - type: "glob"
+            value: "AWSReservedSSO_*"
